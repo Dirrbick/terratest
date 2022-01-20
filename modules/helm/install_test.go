@@ -23,6 +23,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	nginxChartName    = "nginx"
+	nginxChartVersion = "9.7.3"
+)
+
 // Test that we can install a remote chart (e.g stable/chartmuseum)
 func TestRemoteChartInstall(t *testing.T) {
 	t.Parallel()
@@ -50,12 +55,12 @@ func TestRemoteChartInstall(t *testing.T) {
 	// Add the stable repo under a random name so as not to touch existing repo configs
 	uniqueName := strings.ToLower(fmt.Sprintf("terratest-%s", random.UniqueId()))
 	defer RemoveRepo(t, options, uniqueName)
-	AddRepo(t, options, uniqueName, "https://helm.nginx.com/stable")
-	helmChart := fmt.Sprintf("%s/nginx-ingress", uniqueName)
+	AddRepo(t, options, uniqueName, "https://charts.bitnami.com/bitnami")
+	helmChart := fmt.Sprintf("%s/%s", uniqueName, nginxChartName)
 
 	// Generate a unique release name so we can defer the delete before installing
 	releaseName := fmt.Sprintf(
-		"nginx-ingress-%s",
+		"nginx-%s",
 		strings.ToLower(random.UniqueId()),
 	)
 	defer Delete(t, options, releaseName, true)
@@ -65,16 +70,16 @@ func TestRemoteChartInstall(t *testing.T) {
 	require.Error(t, InstallE(t, options, helmChart, releaseName))
 
 	// Fix chart version and retry install
-	options.Version = "0.10.3"
+	options.Version = nginxChartVersion
 	// Test that passing extra arguments doesn't error, by changing default timeout
 	options.ExtraArgs = map[string][]string{"install": []string{"--timeout", "5m1s"}}
 	options.ExtraArgs["delete"] = []string{"--timeout", "5m1s"}
 	require.NoError(t, InstallE(t, options, helmChart, releaseName))
-	waitForRemoteChartPods(t, kubectlOptions, releaseName, 1)
+	waitForRemoteChartPods(t, kubectlOptions, releaseName, nginxChartName, 1)
 
 	// Verify service is accessible. Wait for it to become available and then hit the endpoint.
 	// Service name is RELEASE_NAME-CHART_NAME
-	serviceName := fmt.Sprintf("%s-nginx-ingress", releaseName)
+	serviceName := fmt.Sprintf("%s-%s", releaseName, nginxChartName)
 	k8s.WaitUntilServiceAvailable(t, kubectlOptions, serviceName, 10, 1*time.Second)
 	service := k8s.GetService(t, kubectlOptions, serviceName)
 	endpoint := k8s.GetServiceEndpoint(t, kubectlOptions, service, 8080)
@@ -94,11 +99,11 @@ func TestRemoteChartInstall(t *testing.T) {
 	)
 }
 
-func waitForRemoteChartPods(t *testing.T, kubectlOptions *k8s.KubectlOptions, releaseName string, podCount int) {
+func waitForRemoteChartPods(t *testing.T, kubectlOptions *k8s.KubectlOptions, releaseName string, chartName string, podCount int) {
 	// Get pod and wait for it to be avaialable
 	// To get the pod, we need to filter it using the labels that the helm chart creates
 	filters := metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("app=chartmuseum,release=%s", releaseName),
+		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s,app.kubernetes.io/name=%s", releaseName, chartName),
 	}
 	k8s.WaitUntilNumPodsCreated(t, kubectlOptions, filters, podCount, 30, 10*time.Second)
 	pods := k8s.ListPods(t, kubectlOptions, filters)

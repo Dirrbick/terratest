@@ -1,3 +1,4 @@
+//go:build kubeall || helm
 // +build kubeall helm
 
 // NOTE: we have build tags to differentiate kubernetes tests from non-kubernetes tests, and further differentiate helm
@@ -41,22 +42,23 @@ func TestRemoteChartInstallUpgradeRollback(t *testing.T) {
 		SetValues: map[string]string{
 			"service.type": "NodePort",
 		},
+		Version: nginxChartVersion,
 	}
 
 	// Add the stable repo under a random name so as not to touch existing repo configs
 	uniqueName := strings.ToLower(fmt.Sprintf("terratest-%s", random.UniqueId()))
 	defer RemoveRepo(t, options, uniqueName)
-	AddRepo(t, options, uniqueName, "https://charts.helm.sh/stable")
-	helmChart := fmt.Sprintf("%s/chartmuseum", uniqueName)
+	AddRepo(t, options, uniqueName, "https://helm.nginx.com/stable")
+	helmChart := fmt.Sprintf("%s/%s", uniqueName, nginxChartName)
 
 	// Generate a unique release name so we can defer the delete before installing
 	releaseName := fmt.Sprintf(
-		"chartmuseum-%s",
+		"nginx-%s",
 		strings.ToLower(random.UniqueId()),
 	)
 	defer Delete(t, options, releaseName, true)
 	Install(t, options, helmChart, releaseName)
-	waitForRemoteChartPods(t, kubectlOptions, releaseName, 1)
+	waitForRemoteChartPods(t, kubectlOptions, releaseName, nginxChartName, 1)
 
 	// Setting replica count to 2 to check the upgrade functionality.
 	// After successful upgrade , the count of pods should be equal to 2.
@@ -68,7 +70,7 @@ func TestRemoteChartInstallUpgradeRollback(t *testing.T) {
 	options.ExtraArgs = map[string][]string{"upgrade": []string{"--timeout", "5m1s"}}
 	options.ExtraArgs["rollback"] = []string{"--timeout", "5m1s"}
 	Upgrade(t, options, helmChart, releaseName)
-	waitForRemoteChartPods(t, kubectlOptions, releaseName, 2)
+	waitForRemoteChartPods(t, kubectlOptions, releaseName, nginxChartName, 2)
 
 	// Verify service is accessible. Wait for it to become available and then hit the endpoint.
 	// Service name is RELEASE_NAME-CHART_NAME
@@ -93,5 +95,5 @@ func TestRemoteChartInstallUpgradeRollback(t *testing.T) {
 
 	// Finally, test rollback functionality. When rolling back, we should see the pods go back down to 1.
 	Rollback(t, options, releaseName, "")
-	waitForRemoteChartPods(t, kubectlOptions, releaseName, 1)
+	waitForRemoteChartPods(t, kubectlOptions, releaseName, nginxChartName, 1)
 }
