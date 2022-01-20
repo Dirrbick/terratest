@@ -9,7 +9,7 @@ env: &env
     OPA_VERSION: v0.33.1
     GO_VERSION: 1.16.3
     GO111MODULE: auto
-    K8S_VERSION: v1.18.0  # Same as EKS
+    K8S_VERSION: v1.18.20  # Same as EKS
     MINIKUBE_VERSION: v1.24.0
     HELM_VERSION: v3.1.1
     KUBECONFIG: /home/circleci/.kube/config
@@ -29,7 +29,9 @@ minikube_defaults: &minikube_defaults
   <<: *env
 
 setup_minikube: &setup_minikube
-  command: setup-minikube --k8s-version "$K8S_VERSION" --minikube-version "$MINIKUBE_VERSION"
+  command: |
+    sudo apt install -y conntrack
+    setup-minikube --k8s-version "$K8S_VERSION" --minikube-version "$MINIKUBE_VERSION"
 
 install_helm: &install_helm
   name: install helm
