@@ -30,6 +30,7 @@ minikube_defaults: &minikube_defaults
 
 setup_minikube: &setup_minikube
   command: |
+    sudo apt update -y
     sudo apt install -y conntrack
     setup-minikube --k8s-version "$K8S_VERSION" --minikube-version "$MINIKUBE_VERSION"
 
