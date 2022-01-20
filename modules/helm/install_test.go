@@ -1,3 +1,4 @@
+//go:build kubeall || helm
 // +build kubeall helm
 
 // NOTE: we have build tags to differentiate kubernetes tests from non-kubernetes tests, and further differentiate helm
@@ -49,12 +50,12 @@ func TestRemoteChartInstall(t *testing.T) {
 	// Add the stable repo under a random name so as not to touch existing repo configs
 	uniqueName := strings.ToLower(fmt.Sprintf("terratest-%s", random.UniqueId()))
 	defer RemoveRepo(t, options, uniqueName)
-	AddRepo(t, options, uniqueName, "https://charts.helm.sh/stable")
-	helmChart := fmt.Sprintf("%s/chartmuseum", uniqueName)
+	AddRepo(t, options, uniqueName, "https://helm.nginx.com/stable")
+	helmChart := fmt.Sprintf("%s/nginx-ingress", uniqueName)
 
 	// Generate a unique release name so we can defer the delete before installing
 	releaseName := fmt.Sprintf(
-		"chartmuseum-%s",
+		"nginx-ingress-%s",
 		strings.ToLower(random.UniqueId()),
 	)
 	defer Delete(t, options, releaseName, true)
@@ -64,7 +65,7 @@ func TestRemoteChartInstall(t *testing.T) {
 	require.Error(t, InstallE(t, options, helmChart, releaseName))
 
 	// Fix chart version and retry install
-	options.Version = "2.3.0"
+	options.Version = "0.10.3"
 	// Test that passing extra arguments doesn't error, by changing default timeout
 	options.ExtraArgs = map[string][]string{"install": []string{"--timeout", "5m1s"}}
 	options.ExtraArgs["delete"] = []string{"--timeout", "5m1s"}
@@ -73,7 +74,7 @@ func TestRemoteChartInstall(t *testing.T) {
 
 	// Verify service is accessible. Wait for it to become available and then hit the endpoint.
 	// Service name is RELEASE_NAME-CHART_NAME
-	serviceName := fmt.Sprintf("%s-chartmuseum", releaseName)
+	serviceName := fmt.Sprintf("%s-nginx-ingress", releaseName)
 	k8s.WaitUntilServiceAvailable(t, kubectlOptions, serviceName, 10, 1*time.Second)
 	service := k8s.GetService(t, kubectlOptions, serviceName)
 	endpoint := k8s.GetServiceEndpoint(t, kubectlOptions, service, 8080)
